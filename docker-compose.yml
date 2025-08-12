@@ -8,6 +8,11 @@ services:
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   postgres:
     image: postgres:15-alpine
@@ -20,8 +25,13 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d queue_system"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-  app:
+  api:
     build: .
     ports:
       - "3000:3000"
@@ -29,12 +39,87 @@ services:
       NODE_ENV: production
       REDIS_HOST: redis
       DB_HOST: postgres
+      DB_NAME: queue_system
+      DB_USER: postgres
+      DB_PASSWORD: password
+      PORT: 3000
+      LOG_LEVEL: info
     depends_on:
-      - redis
-      - postgres
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
     volumes:
-      - ./src:/app/src
-      - ./dist:/app/dist
+      - ./logs:/app/logs
+    command: ["node", "dist/index.js"]
+    restart: unless-stopped
+
+  worker:
+    build: .
+    environment:
+      NODE_ENV: production
+      REDIS_HOST: redis
+      DB_HOST: postgres
+      DB_NAME: queue_system
+      DB_USER: postgres
+      DB_PASSWORD: password
+      LOG_LEVEL: info
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+    command: ["node", "dist/worker.js"]
+    restart: unless-stopped
+    scale: 2
+
+  monitor:
+    build: .
+    environment:
+      NODE_ENV: production
+      REDIS_HOST: redis
+      DB_HOST: postgres
+      DB_NAME: queue_system
+      DB_USER: postgres
+      DB_PASSWORD: password
+      LOG_LEVEL: info
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+    command: ["node", "dist/monitor.js"]
+    restart: unless-stopped
+    profiles:
+      - monitor
+
+  producer:
+    build: .
+    environment:
+      NODE_ENV: production
+      REDIS_HOST: redis
+      DB_HOST: postgres
+      DB_NAME: queue_system
+      DB_USER: postgres
+      DB_PASSWORD: password
+      LOG_LEVEL: info
+      PRODUCER_INTERVAL: 5000
+      PRODUCER_MAX_TASKS: 100
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+    command: ["node", "dist/producer.js"]
+    restart: unless-stopped
+    profiles:
+      - demo
 
 volumes:
   redis_data:

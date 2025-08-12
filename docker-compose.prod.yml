@@ -1,0 +1,97 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - queue-network
+
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-queue_system}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-queue_system}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - queue-network
+
+  api:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      REDIS_HOST: redis
+      DB_HOST: postgres
+      DB_NAME: ${DB_NAME:-queue_system}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+      PORT: 3000
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+    command: ["node", "dist/index.js"]
+    networks:
+      - queue-network
+
+  worker:
+    build: .
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      REDIS_HOST: redis
+      DB_HOST: postgres
+      DB_NAME: ${DB_NAME:-queue_system}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      EMAIL_CONCURRENCY: ${EMAIL_CONCURRENCY:-3}
+      IMAGE_CONCURRENCY: ${IMAGE_CONCURRENCY:-2}
+      FILE_CONCURRENCY: ${FILE_CONCURRENCY:-3}
+      EXPORT_CONCURRENCY: ${EXPORT_CONCURRENCY:-1}
+      API_CONCURRENCY: ${API_CONCURRENCY:-5}
+      CLEANUP_CONCURRENCY: ${CLEANUP_CONCURRENCY:-1}
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+    command: ["node", "dist/worker.js"]
+    deploy:
+      replicas: ${WORKER_REPLICAS:-2}
+    networks:
+      - queue-network
+
+networks:
+  queue-network:
+    driver: bridge
+
+volumes:
+  redis_data:
+  postgres_data:

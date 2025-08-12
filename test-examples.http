@@ -1,0 +1,265 @@
+### Variables
+@baseUrl = http://localhost:3000
+@contentType = application/json
+
+### Health Check
+GET {{baseUrl}}/health
+
+### Create Email Task
+POST {{baseUrl}}/tasks
+Content-Type: {{contentType}}
+
+{
+  "type": "email_notification",
+  "priority": 10,
+  "data": {
+    "to": ["user@example.com", "admin@example.com"],
+    "subject": "Test Email Notification",
+    "body": "This is a test email from the queue system",
+    "template": "notification"
+  },
+  "metadata": {
+    "source": "api_test",
+    "delay": 0
+  }
+}
+
+### Create Image Processing Task
+POST {{baseUrl}}/tasks
+Content-Type: {{contentType}}
+
+{
+  "type": "image_processing",
+  "priority": 5,
+  "data": {
+    "imagePath": "/uploads/test-image.jpg",
+    "operations": [
+      {
+        "type": "resize",
+        "params": {
+          "width": 800,
+          "height": 600
+        }
+      },
+      {
+        "type": "compress",
+        "params": {
+          "quality": 0.85
+        }
+      },
+      {
+        "type": "watermark",
+        "params": {
+          "position": "bottom-right",
+          "opacity": 0.7
+        }
+      }
+    ],
+    "outputPath": "/processed/test-image-processed.jpg"
+  }
+}
+
+### Create File Processing Task
+POST {{baseUrl}}/tasks
+Content-Type: {{contentType}}
+
+{
+  "type": "file_processing",
+  "priority": 5,
+  "data": {
+    "filePath": "/data/users-import.csv",
+    "operation": "validate",
+    "params": {
+      "format": "csv",
+      "rules": ["required_fields", "email_format", "unique_email"]
+    }
+  }
+}
+
+### Create Data Export Task
+POST {{baseUrl}}/tasks
+Content-Type: {{contentType}}
+
+{
+  "type": "data_export",
+  "priority": 1,
+  "data": {
+    "query": "SELECT id, name, email, created_at FROM users WHERE status = 'active' ORDER BY created_at DESC",
+    "format": "csv",
+    "destination": "/exports/active-users-export.csv",
+    "filters": {
+      "active": true,
+      "dateRange": "last_30_days"
+    }
+  }
+}
+
+### Create API Integration Task
+POST {{baseUrl}}/tasks
+Content-Type: {{contentType}}
+
+{
+  "type": "api_integration",
+  "priority": 10,
+  "data": {
+    "endpoint": "https://webhook.site/your-unique-url",
+    "method": "POST",
+    "headers": {
+      "Authorization": "Bearer test-token-123",
+      "Content-Type": "application/json",
+      "X-Source": "queue-system"
+    },
+    "payload": {
+      "event": "user_created",
+      "data": {
+        "userId": 12345,
+        "timestamp": "2025-01-15T10:30:00Z"
+      }
+    },
+    "retryConfig": {
+      "maxRetries": 3,
+      "backoffMultiplier": 2
+    }
+  }
+}
+
+### Create Cleanup Task
+POST {{baseUrl}}/tasks
+Content-Type: {{contentType}}
+
+{
+  "type": "cleanup",
+  "priority": 1,
+  "data": {
+    "action": "system_cleanup",
+    "targets": ["temp_files", "expired_cache", "old_logs"],
+    "olderThan": "7_days"
+  }
+}
+
+### Get Task Status (replace {taskId} with actual task ID)
+GET {{baseUrl}}/tasks/550e8400-e29b-41d4-a716-446655440000
+
+### Get All Tasks
+GET {{baseUrl}}/tasks
+
+### Get Tasks by Status
+GET {{baseUrl}}/tasks?status=completed&limit=10
+
+### Get Queue Statistics
+GET {{baseUrl}}/stats/queues
+
+### Get System Metrics
+GET {{baseUrl}}/stats/system
+
+### Create Sample Tasks
+POST {{baseUrl}}/demo/create-sample-tasks
+Content-Type: {{contentType}}
+
+{}
+
+### Pause Email Queue
+POST {{baseUrl}}/admin/queues/email_notification/pause
+Content-Type: {{contentType}}
+
+### Resume Email Queue
+POST {{baseUrl}}/admin/queues/email_notification/resume
+Content-Type: {{contentType}}
+
+### Retry All Failed Tasks
+POST {{baseUrl}}/admin/retry-failed
+Content-Type: {{contentType}}
+
+{}
+
+### Retry Failed Tasks for Specific Type
+POST {{baseUrl}}/admin/retry-failed
+Content-Type: {{contentType}}
+
+{
+  "taskType": "image_processing"
+}
+
+### Cleanup Old Jobs
+POST {{baseUrl}}/admin/cleanup
+Content-Type: {{contentType}}
+
+{
+  "daysOld": 7
+}
+
+### Batch Create Multiple Tasks
+POST {{baseUrl}}/tasks
+Content-Type: {{contentType}}
+
+{
+  "type": "email_notification",
+  "priority": 5,
+  "data": {
+    "to": ["batch1@example.com"],
+    "subject": "Batch Email 1",
+    "body": "First batch email"
+  }
+}
+
+###
+POST {{baseUrl}}/tasks
+Content-Type: {{contentType}}
+
+{
+  "type": "email_notification",
+  "priority": 5,
+  "data": {
+    "to": ["batch2@example.com"],
+    "subject": "Batch Email 2",
+    "body": "Second batch email"
+  }
+}
+
+###
+POST {{baseUrl}}/tasks
+Content-Type: {{contentType}}
+
+{
+  "type": "email_notification",
+  "priority": 5,
+  "data": {
+    "to": ["batch3@example.com"],
+    "subject": "Batch Email 3",
+    "body": "Third batch email"
+  }
+}
+
+### Error Testing - Invalid Task Type
+POST {{baseUrl}}/tasks
+Content-Type: {{contentType}}
+
+{
+  "type": "invalid_task_type",
+  "priority": 5,
+  "data": {
+    "test": "data"
+  }
+}
+
+### Error Testing - Missing Data
+POST {{baseUrl}}/tasks
+Content-Type: {{contentType}}
+
+{
+  "type": "email_notification",
+  "priority": 5
+}
+
+### Load Testing - Create Multiple High Priority Tasks
+POST {{baseUrl}}/tasks
+Content-Type: {{contentType}}
+
+{
+  "type": "api_integration",
+  "priority": 15,
+  "data": {
+    "endpoint": "https://httpbin.org/delay/2",
+    "method": "GET"
+  }
+}
