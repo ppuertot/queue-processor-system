@@ -1,0 +1,93 @@
+.DEFAULT_GOAL := help
+
+help: ## Mostrar ayuda
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+
+install: ## Instalar dependencias
+	npm install
+
+build: ## Construir el proyecto
+	npm run build
+
+dev: ## Iniciar en modo desarrollo
+	npm run dev
+
+worker: ## Iniciar worker
+	npm run worker
+
+monitor: ## Iniciar monitor del sistema
+	npm run monitor
+
+producer: ## Iniciar productor de tareas
+	npm run producer
+
+# Comandos específicos para Podman
+podman-up: ## Iniciar servicios con Podman
+	podman-compose -f podman-compose.yml up -d
+
+podman-down: ## Detener servicios Podman
+	podman-compose -f podman-compose.yml down
+
+podman-logs: ## Ver logs de los servicios
+	podman-compose -f podman-compose.yml logs -f
+
+podman-build: ## Construir imagen con Podman
+	podman-compose -f podman-compose.yml build
+
+podman-prod: ## Iniciar en modo producción con Podman
+	podman-compose -f podman-compose.prod.yml up -d
+
+podman-prod-down: ## Detener modo producción con Podman
+	podman-compose -f podman-compose.prod.yml down
+
+# Aliases para compatibilidad con Docker
+docker-up: podman-up ## Alias para podman-up
+docker-down: podman-down ## Alias para podman-down
+docker-logs: podman-logs ## Alias para podman-logs
+docker-build: podman-build ## Alias para podman-build
+docker-prod: podman-prod ## Alias para podman-prod
+docker-prod-down: podman-prod-down ## Alias para podman-prod-down
+
+start-all: podman-up ## Iniciar todos los servicios
+	@echo "Sistema iniciado con Podman! Accede a http://localhost:3000/health"
+
+stop-all: podman-down ## Detener todos los servicios
+
+start-monitor: ## Iniciar monitor con Podman
+	podman-compose -f podman-compose.yml --profile monitor up -d monitor
+
+start-demo: ## Iniciar demo con productor
+	podman-compose -f podman-compose.yml --profile demo up -d producer
+
+demo: ## Crear tareas de demostración
+	curl -X POST http://localhost:3000/api/demo/create-sample-tasks -H "Content-Type: application/json" -d '{}'
+
+stats: ## Mostrar estadísticas del sistema
+	curl -s http://localhost:3000/api/stats/system | jq
+
+queue-stats: ## Mostrar estadísticas de colas
+	curl -s http://localhost:3000/api/stats/queues | jq
+
+health: ## Verificar salud del sistema
+	curl -s http://localhost:3000/health | jq
+
+clean: ## Limpiar volúmenes Podman
+	podman-compose -f podman-compose.yml down -v
+	podman system prune -f
+
+reset: clean podman-build start-all ## Reiniciar completamente el sistema
+
+# Comandos específicos de Podman
+podman-volumes: ## Listar volúmenes de Podman
+	podman volume ls
+
+podman-ps: ## Mostrar contenedores activos
+	podman ps
+
+podman-images: ## Listar imágenes
+	podman images
+
+podman-system-info: ## Información del sistema Podman
+	podman system info
+
+.PHONY: help install build dev worker monitor producer podman-up podman-down start-all stop-all demo stats clean reset

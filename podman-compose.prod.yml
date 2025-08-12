@@ -1,0 +1,130 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --save 60 1 --loglevel notice
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    # Podman specific options
+    security_opt:
+      - label=disable
+    userns_mode: "keep-id"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: queue_system
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+      POSTGRES_INITDB_ARGS: "--auth-host=md5"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d queue_system"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    # Podman specific options
+    security_opt:
+      - label=disable
+    userns_mode: "keep-id"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  api:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      REDIS_HOST: redis
+      DB_HOST: postgres
+      DB_NAME: queue_system
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+      PORT: 3000
+      LOG_LEVEL: ${LOG_LEVEL:-warn}
+      MAX_CONCURRENT_JOBS: ${MAX_CONCURRENT_JOBS:-10}
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs:Z
+    command: ["node", "dist/index.js"]
+    restart: unless-stopped
+    # Podman specific options
+    security_opt:
+      - label=disable
+    userns_mode: "keep-id"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  worker:
+    build: .
+    environment:
+      NODE_ENV: production
+      REDIS_HOST: redis
+      DB_HOST: postgres
+      DB_NAME: queue_system
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+      LOG_LEVEL: ${LOG_LEVEL:-warn}
+      EMAIL_CONCURRENCY: ${EMAIL_CONCURRENCY:-3}
+      IMAGE_CONCURRENCY: ${IMAGE_CONCURRENCY:-2}
+      FILE_CONCURRENCY: ${FILE_CONCURRENCY:-3}
+      EXPORT_CONCURRENCY: ${EXPORT_CONCURRENCY:-1}
+      API_CONCURRENCY: ${API_CONCURRENCY:-5}
+      CLEANUP_CONCURRENCY: ${CLEANUP_CONCURRENCY:-1}
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs:Z
+    command: ["node", "dist/worker.js"]
+    restart: unless-stopped
+    # Podman specific options
+    security_opt:
+      - label=disable
+    userns_mode: "keep-id"
+    deploy:
+      replicas: ${WORKER_REPLICAS:-3}
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+volumes:
+  redis_data:
+  postgres_data:

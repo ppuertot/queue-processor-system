@@ -53,6 +53,15 @@ make docker-logs              # Ver logs en tiempo real
 make stop-all                 # Detener todos los servicios
 ```
 
+### Podman (Alternativa sin root)
+```bash
+make -f Makefile.podman start-all    # Iniciar todo el sistema
+make -f Makefile.podman demo         # Crear tareas de ejemplo
+make -f Makefile.podman stats        # Ver estadísticas del sistema
+make -f Makefile.podman podman-logs  # Ver logs en tiempo real
+make -f Makefile.podman stop-all     # Detener todos los servicios
+```
+
 ### Comandos de Gestión
 ```bash
 make start-monitor            # Iniciar solo el monitor
@@ -339,6 +348,13 @@ curl -s http://localhost:3000/api/stats/system | jq '.memoryUsage'
 - `src/queue/QueueManager.ts` - Gestión de colas
 - `src/queue/TaskProcessor.ts` - Procesadores de tareas
 - `sql/init.sql` - Schema de base de datos
+
+### Configuración para Podman
+- `PODMAN.md` - Guía completa de configuración para Podman
+- `podman-compose.yml` - Configuración de desarrollo
+- `podman-compose.prod.yml` - Configuración de producción
+- `Makefile.podman` - Comandos específicos para Podman
+- `.env.podman` - Variables de entorno para Podman
 
 ---
 
